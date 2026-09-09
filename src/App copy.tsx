@@ -20,40 +20,71 @@ function App() {
   const [peticionesPendientes, setPeticionesPendientes] = useState<Peticion[]>([]);
   const [peticionesEjecutadas, setPeticionesEjecutadas] = useState<Peticion[]>([]);
 
-  // Estados para el buscador inteligente de iTunes
+  // Buscador iTunes
   const [sugerencias, setSugerencias] = useState<any[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
-  
-  // Estado para recordar qué fue lo último que seleccionó el cliente
   const [ultimaSeleccion, setUltimaSeleccion] = useState('');
 
-  // Efecto que consulta a iTunes cuando el cliente escribe
+  // NUEVOS ESTADOS: Control del sistema y color del cliente
+  const [sistemaActivo, setSistemaActivo] = useState(true);
+  const [colorCliente, setColorCliente] = useState('#FFFFFF');
+
+  // EFECTO 1: Generar o leer el color único del dispositivo
+  useEffect(() => {
+    let colorGuardado = localStorage.getItem('dj_huella_color');
+    if (!colorGuardado) {
+      // Paleta de colores neón brillantes para que resalten en tu app oscura
+      const coloresNeon = ['#FF0055', '#00F3FF', '#BC13FE', '#00FF66', '#FFD700', '#FF5733', '#FF00FF', '#39FF14'];
+      colorGuardado = coloresNeon[Math.floor(Math.random() * coloresNeon.length)];
+      localStorage.setItem('dj_huella_color', colorGuardado);
+    }
+    setColorCliente(colorGuardado);
+  }, []);
+
+ // EFECTO 2: Escuchar si el sistema está activo o apagado
+  useEffect(() => {
+    const cargarConfig = async () => {
+      // Cambiamos .single() por .maybeSingle() para evitar el error 406
+      const { data } = await supabase.from('configuracion').select('sistema_activo').eq('id', 1).maybeSingle();
+      if (data) setSistemaActivo(data.sistema_activo);
+    };
+    cargarConfig();
+
+    const canalConfig = supabase
+      .channel('cambios-config')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'configuracion' }, (payload) => {
+        setSistemaActivo(payload.new.sistema_activo);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(canalConfig); };
+  }, []);
+
+  // Buscador de iTunes
   useEffect(() => {
     if (tipo !== 'cancion' || contenido.trim().length < 3 || contenido === ultimaSeleccion) {
       setSugerencias([]);
       setMostrarSugerencias(false);
       return;
     }
-
     const temporizador = setTimeout(async () => {
       setBuscando(true);
       try {
-        const respuesta = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(contenido)}&entity=song&limit=20`);
+        const respuesta = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(contenido)}&entity=song&limit=10`);
         const datos = await respuesta.json();
         setSugerencias(datos.results || []);
         setMostrarSugerencias(true);
       } catch (error) {
-        console.error("Error al buscar música:", error);
+        console.error("Error al buscar:", error);
       } finally {
         setBuscando(false);
       }
     }, 500);
-
     return () => clearTimeout(temporizador);
   }, [contenido, tipo, ultimaSeleccion]);
 
-  // Cargar historial y escuchar tiempo real de Supabase
+  // Cargar Peticiones 
   useEffect(() => {
     cargarPeticiones();
     const canal = supabase
@@ -85,13 +116,21 @@ function App() {
 
     const { error } = await supabase
       .from('peticiones')
-      .insert([{ tipo, cliente_nombre: nombre || 'Anónimo', mesa: mesa || 'Barra', contenido, estado: 'pendiente', votos: 1 }]);
+      .insert([{ 
+        tipo, 
+        cliente_nombre: nombre || 'Anónimo', 
+        mesa: mesa || 'Barra', 
+        contenido, 
+        estado: 'pendiente', 
+        votos: 1,
+        color_cliente: colorCliente // ENVIAMOS LA HUELLA DE COLOR
+      }]);
 
     setEnviando(false);
     if (!error) {
       setMensajeExito(true);
       setContenido('');
-      setUltimaSeleccion(''); 
+      setUltimaSeleccion('');
       setMostrarSugerencias(false); 
       setTimeout(() => setMensajeExito(false), 4000);
     }
@@ -109,14 +148,36 @@ function App() {
     setMostrarSugerencias(false);
   };
 
+  // PANTALLA DE BLOQUEO: Si tú apagas el sistema, los clientes solo ven esto
+  if (!sistemaActivo) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#100B21] text-center relative overflow-hidden">
+        <div className="fixed top-[-10%] left-[-10%] w-64 h-64 bg-neon-purple rounded-full mix-blend-screen filter blur-[100px] opacity-30 pointer-events-none"></div>
+        <div className="z-10 w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+          <span className="text-7xl mb-6 block animate-bounce">🎧</span>
+          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-neon-purple mb-4">
+            CABINA CERRADA
+          </h1>
+          <p className="text-gray-300 text-lg">
+            El DJ está preparando su set o tomando un respiro.
+          </p>
+          <div className="mt-8 p-4 bg-black/40 rounded-xl border border-white/5">
+            <p className="text-neon-blue font-bold animate-pulse">
+              Las complacencias se activarán en breve...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // INTERFAZ NORMAL: Si el sistema está encendido
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 sm:p-8 pt-12 relative overflow-hidden pb-20">
       
-      {/* Fondo decorativo */}
       <div className="fixed top-[-10%] left-[-10%] w-64 h-64 bg-neon-purple rounded-full mix-blend-screen filter blur-[100px] opacity-30 pointer-events-none"></div>
       <div className="fixed bottom-[-10%] right-[-10%] w-64 h-64 bg-neon-blue rounded-full mix-blend-screen filter blur-[100px] opacity-30 pointer-events-none"></div>
 
-      {/* Cabecera */}
       <div className="z-10 text-center mb-8">
         <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-neon-purple mb-2 drop-shadow-[0_0_15px_rgba(188,19,254,0.5)]">
           DJ HAROLD
@@ -124,7 +185,6 @@ function App() {
         <p className="text-gray-300 font-light tracking-widest uppercase text-sm">Viernes de Complacencias</p>
       </div>
 
-      {/* Formulario Glassmorphism */}
       <div className="z-50 w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl mb-8 overflow-visible">
         <form onSubmit={enviarPeticion} className="flex flex-col gap-5 relative">
           <div className="flex gap-4">
@@ -133,62 +193,26 @@ function App() {
           </div>
 
           <div className="flex bg-black/40 rounded-full p-1 border border-white/5">
-            <button 
-              type="button"
-              onClick={() => { setTipo('cancion'); setMostrarSugerencias(false); }}
-              className={`flex-1 py-2 rounded-full text-sm font-bold transition-all ${tipo === 'cancion' ? 'bg-neon-purple text-white shadow-[0_0_15px_rgba(188,19,254,0.4)]' : 'text-gray-400 hover:text-white'}`}
-            >
-              🎵 Canción
-            </button>
-            <button 
-              type="button"
-              onClick={() => { setTipo('saludo'); setMostrarSugerencias(false); }}
-              className={`flex-1 py-2 rounded-full text-sm font-bold transition-all ${tipo === 'saludo' ? 'bg-neon-blue text-black shadow-[0_0_15px_rgba(0,243,255,0.4)]' : 'text-gray-400 hover:text-white'}`}
-            >
-              👋 Saludo
-            </button>
+            <button type="button" onClick={() => { setTipo('cancion'); setMostrarSugerencias(false); }} className={`flex-1 py-2 rounded-full text-sm font-bold transition-all ${tipo === 'cancion' ? 'bg-neon-purple text-white shadow-[0_0_15px_rgba(188,19,254,0.4)]' : 'text-gray-400 hover:text-white'}`}>🎵 Canción</button>
+            <button type="button" onClick={() => { setTipo('saludo'); setMostrarSugerencias(false); }} className={`flex-1 py-2 rounded-full text-sm font-bold transition-all ${tipo === 'saludo' ? 'bg-neon-blue text-black shadow-[0_0_15px_rgba(0,243,255,0.4)]' : 'text-gray-400 hover:text-white'}`}>👋 Saludo</button>
           </div>
 
           <div className="relative w-full">
-            <textarea 
-              required 
-              placeholder={tipo === 'cancion' ? "¿Qué canción quieres escuchar? Ej. Bee Gees - Night Fever" : "¿Qué mensaje quieres enviar?"} 
-              value={contenido} 
-              onChange={(e) => {
-                setContenido(e.target.value);
-                if (e.target.value !== ultimaSeleccion) {
-                  setUltimaSeleccion('');
-                }
-              }} 
-              className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-neon-blue transition-colors h-28 resize-none relative z-10"
-            />
+            <textarea required placeholder={tipo === 'cancion' ? "¿Qué canción quieres escuchar? Ej. Bee Gees - Night Fever" : "¿Qué mensaje quieres enviar?"} value={contenido} onChange={(e) => { setContenido(e.target.value); if (e.target.value !== ultimaSeleccion) setUltimaSeleccion(''); }} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-neon-blue transition-colors h-28 resize-none relative z-10"/>
             
-            {/* Lista Flotante de Sugerencias de iTunes con botón de Ocultar */}
             {tipo === 'cancion' && mostrarSugerencias && (sugerencias.length > 0 || buscando) && (
               <div className="absolute top-full mt-2 w-full bg-[#100B21] border border-neon-purple/50 rounded-xl shadow-[0_0_20px_rgba(188,19,254,0.2)] z-50 overflow-hidden">
                 {buscando ? (
-                  <div className="p-4 text-center text-neon-blue text-sm animate-pulse font-medium">
-                    Buscando en la base musical...
-                  </div>
+                  <div className="p-4 text-center text-neon-blue text-sm animate-pulse font-medium">Buscando en la base musical...</div>
                 ) : (
                   <ul className="flex flex-col max-h-[300px] overflow-y-auto relative">
                     {sugerencias.map((item, index) => (
-                      <li 
-                        key={index}
-                        onClick={() => seleccionarSugerencia(item.artistName, item.trackName)}
-                        className="px-4 py-3 hover:bg-white/10 cursor-pointer border-b border-white/5 last:border-0 transition-colors flex flex-col"
-                      >
+                      <li key={index} onClick={() => seleccionarSugerencia(item.artistName, item.trackName)} className="px-4 py-3 hover:bg-white/10 cursor-pointer border-b border-white/5 last:border-0 transition-colors flex flex-col">
                         <span className="text-white font-bold">{item.trackName}</span>
                         <span className="text-neon-blue text-xs mt-1">{item.artistName}</span>
                       </li>
                     ))}
-                    {/* Botón para cerrar sugerencias */}
-                    <li 
-                      onClick={() => setMostrarSugerencias(false)}
-                      className="px-4 py-3 bg-[#100B21] hover:bg-white/10 cursor-pointer transition-colors flex justify-center items-center text-gray-400 hover:text-white text-sm font-bold sticky bottom-0 border-t border-white/10"
-                    >
-                      Usar mi texto (Ocultar) ⬆️
-                    </li>
+                    <li onClick={() => setMostrarSugerencias(false)} className="px-4 py-3 bg-[#100B21] hover:bg-white/10 cursor-pointer transition-colors flex justify-center items-center text-gray-400 hover:text-white text-sm font-bold sticky bottom-0 border-t border-white/10">Usar mi texto (Ocultar) ⬆️</li>
                   </ul>
                 )}
               </div>
@@ -202,7 +226,6 @@ function App() {
         {mensajeExito && <div className="mt-6 p-3 bg-neon-green/20 border border-neon-green rounded-xl text-neon-green text-center font-bold animate-pulse relative z-0">¡Recibido en cabina!</div>}
       </div>
 
-      {/* Tarjeta de Sonando Ahora */}
       {peticionesEjecutadas.length > 0 && (
         <div className="z-10 w-full max-w-md mb-8">
           <div className="bg-gradient-to-r from-neon-green/20 to-black border border-neon-green rounded-2xl p-4 shadow-[0_0_15px_rgba(0,255,102,0.2)]">
@@ -213,7 +236,6 @@ function App() {
         </div>
       )}
 
-      {/* Lista de Pendientes */}
       {peticionesPendientes.length > 0 && (
         <div className="z-10 w-full max-w-md mb-8">
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">🔥 Próximamente</h2>
@@ -234,17 +256,18 @@ function App() {
         </div>
       )}
 
-      {/* Historial de canciones previas rediseñado */}
+      {/* Historial de canciones previas rediseñado CON SCROLL */}
       {peticionesEjecutadas.length > 1 && (
         <div className="z-10 w-full max-w-md">
           <h2 className="text-lg font-bold text-gray-400 mb-4 flex items-center gap-2">✅ Ya Sonaron</h2>
-          <div className="flex flex-col gap-3 opacity-80">
+          {/* Aquí agregamos max-h-[250px] y overflow-y-auto */}
+          <div className="flex flex-col gap-3 opacity-80 max-h-[250px] overflow-y-auto pr-2">
             {peticionesEjecutadas.slice(1).map((peticion) => (
-              <div key={peticion.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-3 hover:bg-white/10 transition-colors">
+              <div key={peticion.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-3 hover:bg-white/10 transition-colors shrink-0">
                 <span className="text-gray-500 text-xl drop-shadow-md">✔️</span>
                 <div>
                   <p className="text-gray-300 font-medium leading-tight">{peticion.contenido}</p>
-                  <p className="text-gray-500 text-xs mt-1">Dedicada por: {peticionesEjecutadas[0].cliente_nombre}</p>
+                  <p className="text-gray-500 text-xs mt-1">Dedicada por: {peticion.cliente_nombre}</p>
                 </div>
               </div>
             ))}
