@@ -7,7 +7,7 @@ interface Peticion {
   cliente_nombre: string;
   votos: number;
   estado: string;
-  created_at: string; // Agregamos la fecha para poder ordenar correctamente
+  created_at: string;
 }
 
 function App() {
@@ -28,6 +28,7 @@ function App() {
 
   const [sistemaActivo, setSistemaActivo] = useState(true);
   const [colorCliente, setColorCliente] = useState('#FFFFFF');
+  const [cargandoSistema, setCargandoSistema] = useState(true);
 
   useEffect(() => {
     let colorGuardado = localStorage.getItem('dj_huella_color');
@@ -43,6 +44,7 @@ function App() {
     const cargarConfig = async () => {
       const { data } = await supabase.from('configuracion').select('sistema_activo').eq('id', 1).maybeSingle();
       if (data) setSistemaActivo(data.sistema_activo);
+      setCargandoSistema(false);
     };
     cargarConfig();
 
@@ -78,11 +80,9 @@ function App() {
     return () => clearTimeout(temporizador);
   }, [contenido, tipo, ultimaSeleccion]);
 
-  // EL EFECTO MEJORADO PARA RECONEXIONES Y ORDENAMIENTO
   useEffect(() => {
     cargarPeticiones();
     
-    // Escuchar cambios de Supabase
     const canal = supabase
       .channel('cambios-peticiones')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'peticiones' }, () => {
@@ -90,10 +90,9 @@ function App() {
       })
       .subscribe();
 
-    // NUEVO: Detector de "Despertar" del celular (Page Visibility API)
     const manejarVisibilidad = () => {
       if (document.visibilityState === 'visible') {
-        cargarPeticiones(); // Si el usuario desbloquea la pantalla, recargamos inmediatamente
+        cargarPeticiones();
       }
     };
     document.addEventListener('visibilitychange', manejarVisibilidad);
@@ -105,14 +104,12 @@ function App() {
   }, []);
 
   const cargarPeticiones = async () => {
-    // Pedimos la fecha (created_at) y ya no dejamos que la base de datos asuma el orden
     const { data, error } = await supabase
       .from('peticiones')
       .select('id, contenido, cliente_nombre, votos, estado, created_at')
       .eq('tipo', 'cancion');
 
     if (!error && data) {
-      // 1. Pendientes: Ordenadas por votos (mayor a menor) y desempatadas por fecha
       const pendientes = data
         .filter(p => p.estado === 'pendiente')
         .sort((a, b) => {
@@ -120,7 +117,6 @@ function App() {
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         });
 
-      // 2. Ejecutadas: Ordenadas estrictamente por la más reciente
       const ejecutadas = data
         .filter(p => p.estado === 'ejecutada')
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -168,6 +164,14 @@ function App() {
     setSugerencias([]);
     setMostrarSugerencias(false);
   };
+
+  if (cargandoSistema) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#100B21]">
+        <div className="text-neon-blue font-bold animate-pulse">Conectando con cabina...</div>
+      </div>
+    );
+  }
 
   if (!sistemaActivo) {
     return (
