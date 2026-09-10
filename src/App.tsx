@@ -267,9 +267,19 @@ function App() {
               onChange={(e) => { setContenido(e.target.value); if (e.target.value !== ultimaSeleccion) setUltimaSeleccion(''); }} 
               // NUEVO: Movimiento mágico de pantalla y correctores desactivados
               onFocus={() => {
-                setTimeout(() => {
-                  formularioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 400);
+              setTimeout(() => {
+               if (formularioRef.current) {
+                  // Calculamos la posición exacta del formulario en la pantalla
+                  const posicion = formularioRef.current.getBoundingClientRect().top + window.scrollY;
+      
+                 // Ajusta este número: 
+                // -50 lo dejará un poco más abajo (se verá el título)
+                // +50 lo empujará aún más arriba (escondiendo la parte superior)
+                const ajustePixeles = +100; 
+      
+                window.scrollTo({ top: posicion + ajustePixeles, behavior: 'smooth' });
+             }
+            }, 400);
               }}
               spellCheck={false}
               autoComplete="off"
