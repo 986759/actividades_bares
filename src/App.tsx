@@ -8,6 +8,7 @@ interface Peticion {
   votos: number;
   estado: string;
   created_at: string;
+  reproducida_en?: string;
 }
 
 function App() {
