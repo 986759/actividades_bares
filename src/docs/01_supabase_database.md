@@ -16,8 +16,16 @@ Esta base de datos actúa como el intermediario en tiempo real entre la aplicaci
 | `estado` | TEXT | `'pendiente'` (visible en listas activas) o `'ejecutada'` (pasó al historial/ya sonó). |
 | `votos` | INT | Contador de popularidad. Inicia en 1. Los clientes pueden sumarle votos para subir su prioridad. |
 | `created_at` | TIMESTAMPTZ | Fecha/hora de creación. Se usa para desempatar el orden cuando dos peticiones tienen la misma cantidad de votos. |
+| **`color_cliente`** | TEXT | **[NUEVO]** Código Hexágonal (ej. '#FF0055') generado localmente en el dispositivo del cliente. Sirve para identificar visualmente múltiples envíos desde un mismo celular (Control Anti-Spam). |
+
+## Tabla de Control: `configuracion` [NUEVA]
+
+| Campo | Tipo | Propósito y Uso |
+| :--- | :--- | :--- |
+| `id` | INT | Fijo en 1 (Primary Key). |
+| `sistema_activo` | BOOLEAN | Activa (`true`) o desactiva (`false`) la interfaz web del cliente (Switch Maestro). |
 
 ## Políticas de Seguridad (RLS - Row Level Security)
 * **INSERT:** Público. Permite que la aplicación web (React) inserte datos sin requerir inicio de sesión de los clientes.
-* **SELECT:** Público. Permite que la web y la app móvil lean la lista de peticiones activa en tiempo real.
-* **UPDATE:** Público (por ahora). Permite a la web sumar `votos` y a la app móvil cambiar el `estado` a ejecutada/pendiente.
+* **SELECT:** Público. Permite que la web y la app móvil lean la lista de peticiones activa y la tabla de configuración en tiempo real.
+* **UPDATE:** Público (por ahora). Permite a la web sumar `votos` y a la app móvil cambiar el `estado` a ejecutada/pendiente, y modificar `sistema_activo`.

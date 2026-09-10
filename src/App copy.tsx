@@ -26,7 +26,7 @@ function App() {
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [ultimaSeleccion, setUltimaSeleccion] = useState('');
 
-  // NUEVOS ESTADOS: Control del sistema y color del cliente
+  // Control del sistema y color del cliente
   const [sistemaActivo, setSistemaActivo] = useState(true);
   const [colorCliente, setColorCliente] = useState('#FFFFFF');
 
@@ -34,7 +34,6 @@ function App() {
   useEffect(() => {
     let colorGuardado = localStorage.getItem('dj_huella_color');
     if (!colorGuardado) {
-      // Paleta de colores neón brillantes para que resalten en tu app oscura
       const coloresNeon = ['#FF0055', '#00F3FF', '#BC13FE', '#00FF66', '#FFD700', '#FF5733', '#FF00FF', '#39FF14'];
       colorGuardado = coloresNeon[Math.floor(Math.random() * coloresNeon.length)];
       localStorage.setItem('dj_huella_color', colorGuardado);
@@ -42,10 +41,9 @@ function App() {
     setColorCliente(colorGuardado);
   }, []);
 
- // EFECTO 2: Escuchar si el sistema está activo o apagado
+  // EFECTO 2: Escuchar si el sistema está activo o apagado
   useEffect(() => {
     const cargarConfig = async () => {
-      // Cambiamos .single() por .maybeSingle() para evitar el error 406
       const { data } = await supabase.from('configuracion').select('sistema_activo').eq('id', 1).maybeSingle();
       if (data) setSistemaActivo(data.sistema_activo);
     };
@@ -123,7 +121,7 @@ function App() {
         contenido, 
         estado: 'pendiente', 
         votos: 1,
-        color_cliente: colorCliente // ENVIAMOS LA HUELLA DE COLOR
+        color_cliente: colorCliente 
       }]);
 
     setEnviando(false);
@@ -148,7 +146,7 @@ function App() {
     setMostrarSugerencias(false);
   };
 
-  // PANTALLA DE BLOQUEO: Si tú apagas el sistema, los clientes solo ven esto
+  // PANTALLA DE BLOQUEO
   if (!sistemaActivo) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#100B21] text-center relative overflow-hidden">
@@ -171,34 +169,34 @@ function App() {
     );
   }
 
-  // INTERFAZ NORMAL: Si el sistema está encendido
+  // INTERFAZ NORMAL: Ajustada para ahorrar espacio vertical (pt-4, gap-3, mb-4, h-16)
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start p-4 sm:p-8 pt-12 relative overflow-hidden pb-20">
+    <div className="min-h-screen flex flex-col items-center justify-start p-4 sm:p-8 pt-4 relative overflow-hidden pb-20">
       
       <div className="fixed top-[-10%] left-[-10%] w-64 h-64 bg-neon-purple rounded-full mix-blend-screen filter blur-[100px] opacity-30 pointer-events-none"></div>
       <div className="fixed bottom-[-10%] right-[-10%] w-64 h-64 bg-neon-blue rounded-full mix-blend-screen filter blur-[100px] opacity-30 pointer-events-none"></div>
 
-      <div className="z-10 text-center mb-8">
-        <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-neon-purple mb-2 drop-shadow-[0_0_15px_rgba(188,19,254,0.5)]">
+      <div className="z-10 text-center mb-4">
+        <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-neon-purple mb-1 drop-shadow-[0_0_15px_rgba(188,19,254,0.5)]">
           DJ HAROLD
         </h1>
         <p className="text-gray-300 font-light tracking-widest uppercase text-sm">Viernes de Complacencias</p>
       </div>
 
-      <div className="z-50 w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl mb-8 overflow-visible">
-        <form onSubmit={enviarPeticion} className="flex flex-col gap-5 relative">
-          <div className="flex gap-4">
-            <input type="text" placeholder="Tu Nombre (Opcional)" value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-neon-purple transition-colors"/>
-            <input type="text" placeholder="# Mesa" value={mesa} onChange={(e) => setMesa(e.target.value)} className="w-24 bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-center focus:border-neon-purple transition-colors"/>
+      <div className="z-50 w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5 shadow-2xl mb-6 overflow-visible">
+        <form onSubmit={enviarPeticion} className="flex flex-col gap-3 relative">
+          <div className="flex gap-3">
+            <input type="text" placeholder="Tu Nombre (Opcional)" value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white focus:border-neon-purple transition-colors"/>
+            <input type="text" placeholder="# Mesa" value={mesa} onChange={(e) => setMesa(e.target.value)} className="w-24 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white text-center focus:border-neon-purple transition-colors"/>
           </div>
 
           <div className="flex bg-black/40 rounded-full p-1 border border-white/5">
-            <button type="button" onClick={() => { setTipo('cancion'); setMostrarSugerencias(false); }} className={`flex-1 py-2 rounded-full text-sm font-bold transition-all ${tipo === 'cancion' ? 'bg-neon-purple text-white shadow-[0_0_15px_rgba(188,19,254,0.4)]' : 'text-gray-400 hover:text-white'}`}>🎵 Canción</button>
-            <button type="button" onClick={() => { setTipo('saludo'); setMostrarSugerencias(false); }} className={`flex-1 py-2 rounded-full text-sm font-bold transition-all ${tipo === 'saludo' ? 'bg-neon-blue text-black shadow-[0_0_15px_rgba(0,243,255,0.4)]' : 'text-gray-400 hover:text-white'}`}>👋 Saludo</button>
+            <button type="button" onClick={() => { setTipo('cancion'); setMostrarSugerencias(false); }} className={`flex-1 py-1.5 rounded-full text-sm font-bold transition-all ${tipo === 'cancion' ? 'bg-neon-purple text-white shadow-[0_0_15px_rgba(188,19,254,0.4)]' : 'text-gray-400 hover:text-white'}`}>🎵 Canción</button>
+            <button type="button" onClick={() => { setTipo('saludo'); setMostrarSugerencias(false); }} className={`flex-1 py-1.5 rounded-full text-sm font-bold transition-all ${tipo === 'saludo' ? 'bg-neon-blue text-black shadow-[0_0_15px_rgba(0,243,255,0.4)]' : 'text-gray-400 hover:text-white'}`}>👋 Saludo</button>
           </div>
 
           <div className="relative w-full">
-            <textarea required placeholder={tipo === 'cancion' ? "¿Qué canción quieres escuchar? Ej. Bee Gees - Night Fever" : "¿Qué mensaje quieres enviar?"} value={contenido} onChange={(e) => { setContenido(e.target.value); if (e.target.value !== ultimaSeleccion) setUltimaSeleccion(''); }} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-neon-blue transition-colors h-28 resize-none relative z-10"/>
+            <textarea required placeholder={tipo === 'cancion' ? "¿Qué canción quieres escuchar? Ej. Bee Gees - Night Fever" : "¿Qué mensaje quieres enviar?"} value={contenido} onChange={(e) => { setContenido(e.target.value); if (e.target.value !== ultimaSeleccion) setUltimaSeleccion(''); }} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white focus:border-neon-blue transition-colors h-16 resize-none relative z-10"/>
             
             {tipo === 'cancion' && mostrarSugerencias && (sugerencias.length > 0 || buscando) && (
               <div className="absolute top-full mt-2 w-full bg-[#100B21] border border-neon-purple/50 rounded-xl shadow-[0_0_20px_rgba(188,19,254,0.2)] z-50 overflow-hidden">
@@ -219,15 +217,15 @@ function App() {
             )}
           </div>
           
-          <button type="submit" disabled={enviando} className="mt-2 w-full py-4 rounded-xl bg-gradient-to-r from-neon-purple to-neon-blue text-white font-black text-lg shadow-[0_0_20px_rgba(0,243,255,0.3)] hover:scale-[1.02] transition-all relative z-0">
+          <button type="submit" disabled={enviando} className="w-full py-3 rounded-xl bg-gradient-to-r from-neon-purple to-neon-blue text-white font-black text-lg shadow-[0_0_20px_rgba(0,243,255,0.3)] hover:scale-[1.02] transition-all relative z-0">
             {enviando ? 'Enviando...' : 'ENVIAR AL DJ 🚀'}
           </button>
         </form>
-        {mensajeExito && <div className="mt-6 p-3 bg-neon-green/20 border border-neon-green rounded-xl text-neon-green text-center font-bold animate-pulse relative z-0">¡Recibido en cabina!</div>}
+        {mensajeExito && <div className="mt-4 p-2 bg-neon-green/20 border border-neon-green rounded-xl text-neon-green text-center font-bold animate-pulse relative z-0">¡Recibido en cabina!</div>}
       </div>
 
       {peticionesEjecutadas.length > 0 && (
-        <div className="z-10 w-full max-w-md mb-8">
+        <div className="z-10 w-full max-w-md mb-6">
           <div className="bg-gradient-to-r from-neon-green/20 to-black border border-neon-green rounded-2xl p-4 shadow-[0_0_15px_rgba(0,255,102,0.2)]">
             <p className="text-neon-green font-bold text-sm uppercase tracking-widest mb-1 animate-pulse">🎶 Sonando Ahora / Reciente</p>
             <p className="text-white font-bold text-lg">{peticionesEjecutadas[0].contenido}</p>
@@ -237,8 +235,8 @@ function App() {
       )}
 
       {peticionesPendientes.length > 0 && (
-        <div className="z-10 w-full max-w-md mb-8">
-          <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">🔥 Próximamente</h2>
+        <div className="z-10 w-full max-w-md mb-6">
+          <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">🔥 Próximamente</h2>
           <div className="flex flex-col gap-3">
             {peticionesPendientes.map((peticion) => (
               <div key={peticion.id} className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex justify-between items-center">
@@ -256,11 +254,9 @@ function App() {
         </div>
       )}
 
-      {/* Historial de canciones previas rediseñado CON SCROLL */}
       {peticionesEjecutadas.length > 1 && (
         <div className="z-10 w-full max-w-md">
-          <h2 className="text-lg font-bold text-gray-400 mb-4 flex items-center gap-2">✅ Ya Sonaron</h2>
-          {/* Aquí agregamos max-h-[250px] y overflow-y-auto */}
+          <h2 className="text-lg font-bold text-gray-400 mb-3 flex items-center gap-2">✅ Ya Sonaron</h2>
           <div className="flex flex-col gap-3 opacity-80 max-h-[250px] overflow-y-auto pr-2">
             {peticionesEjecutadas.slice(1).map((peticion) => (
               <div key={peticion.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-3 hover:bg-white/10 transition-colors shrink-0">

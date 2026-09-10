@@ -7,6 +7,7 @@ interface Peticion {
   cliente_nombre: string;
   votos: number;
   estado: string;
+  created_at: string; // Agregamos la fecha para poder ordenar correctamente
 }
 
 function App() {
@@ -20,17 +21,14 @@ function App() {
   const [peticionesPendientes, setPeticionesPendientes] = useState<Peticion[]>([]);
   const [peticionesEjecutadas, setPeticionesEjecutadas] = useState<Peticion[]>([]);
 
-  // Buscador iTunes
   const [sugerencias, setSugerencias] = useState<any[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [ultimaSeleccion, setUltimaSeleccion] = useState('');
 
-  // Control del sistema y color del cliente
   const [sistemaActivo, setSistemaActivo] = useState(true);
   const [colorCliente, setColorCliente] = useState('#FFFFFF');
 
-  // EFECTO 1: Generar o leer el color único del dispositivo
   useEffect(() => {
     let colorGuardado = localStorage.getItem('dj_huella_color');
     if (!colorGuardado) {
@@ -41,7 +39,6 @@ function App() {
     setColorCliente(colorGuardado);
   }, []);
 
-  // EFECTO 2: Escuchar si el sistema está activo o apagado
   useEffect(() => {
     const cargarConfig = async () => {
       const { data } = await supabase.from('configuracion').select('sistema_activo').eq('id', 1).maybeSingle();
@@ -59,7 +56,6 @@ function App() {
     return () => { supabase.removeChannel(canalConfig); };
   }, []);
 
-  // Buscador de iTunes
   useEffect(() => {
     if (tipo !== 'cancion' || contenido.trim().length < 3 || contenido === ultimaSeleccion) {
       setSugerencias([]);
@@ -82,28 +78,55 @@ function App() {
     return () => clearTimeout(temporizador);
   }, [contenido, tipo, ultimaSeleccion]);
 
-  // Cargar Peticiones 
+  // EL EFECTO MEJORADO PARA RECONEXIONES Y ORDENAMIENTO
   useEffect(() => {
     cargarPeticiones();
+    
+    // Escuchar cambios de Supabase
     const canal = supabase
       .channel('cambios-peticiones')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'peticiones' }, () => {
         cargarPeticiones();
       })
       .subscribe();
-    return () => { supabase.removeChannel(canal); };
+
+    // NUEVO: Detector de "Despertar" del celular (Page Visibility API)
+    const manejarVisibilidad = () => {
+      if (document.visibilityState === 'visible') {
+        cargarPeticiones(); // Si el usuario desbloquea la pantalla, recargamos inmediatamente
+      }
+    };
+    document.addEventListener('visibilitychange', manejarVisibilidad);
+
+    return () => { 
+      supabase.removeChannel(canal); 
+      document.removeEventListener('visibilitychange', manejarVisibilidad);
+    };
   }, []);
 
   const cargarPeticiones = async () => {
+    // Pedimos la fecha (created_at) y ya no dejamos que la base de datos asuma el orden
     const { data, error } = await supabase
       .from('peticiones')
-      .select('id, contenido, cliente_nombre, votos, estado')
-      .eq('tipo', 'cancion')
-      .order('votos', { ascending: false });
+      .select('id, contenido, cliente_nombre, votos, estado, created_at')
+      .eq('tipo', 'cancion');
 
     if (!error && data) {
-      setPeticionesPendientes(data.filter(p => p.estado === 'pendiente'));
-      setPeticionesEjecutadas(data.filter(p => p.estado === 'ejecutada').reverse());
+      // 1. Pendientes: Ordenadas por votos (mayor a menor) y desempatadas por fecha
+      const pendientes = data
+        .filter(p => p.estado === 'pendiente')
+        .sort((a, b) => {
+          if (b.votos !== a.votos) return b.votos - a.votos;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+
+      // 2. Ejecutadas: Ordenadas estrictamente por la más reciente
+      const ejecutadas = data
+        .filter(p => p.estado === 'ejecutada')
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setPeticionesPendientes(pendientes);
+      setPeticionesEjecutadas(ejecutadas);
     }
   };
 
@@ -146,7 +169,6 @@ function App() {
     setMostrarSugerencias(false);
   };
 
-  // PANTALLA DE BLOQUEO
   if (!sistemaActivo) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#100B21] text-center relative overflow-hidden">
@@ -169,7 +191,6 @@ function App() {
     );
   }
 
-  // INTERFAZ NORMAL: Ajustada para ahorrar espacio vertical (pt-4, gap-3, mb-4, h-16)
   return (
     <div className="min-h-screen flex flex-col items-center justify-start p-4 sm:p-8 pt-4 relative overflow-hidden pb-20">
       
