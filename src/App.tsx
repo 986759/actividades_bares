@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
 
 interface Peticion {
@@ -31,13 +31,30 @@ function App() {
   const [colorCliente, setColorCliente] = useState('#FFFFFF');
   const [cargandoSistema, setCargandoSistema] = useState(true);
 
+  // NUEVO: Referencia para mover la pantalla
+  const formularioRef = useRef<HTMLFormElement>(null);
+
   useEffect(() => {
     let colorGuardado = localStorage.getItem('dj_huella_color');
+    
     if (!colorGuardado) {
-      const coloresNeon = ['#FF0055', '#00F3FF', '#BC13FE', '#00FF66', '#FFD700', '#FF5733', '#FF00FF', '#39FF14'];
-      colorGuardado = coloresNeon[Math.floor(Math.random() * coloresNeon.length)];
+      // 1. Elegimos un tono al azar entre 0 y 360 grados de color
+      const h = Math.floor(Math.random() * 360);
+      
+      // 2. Función matemática para convertir ese tono en código Hexadecimal puro (#RRGGBB)
+      // Manteniendo 100% de saturación y 50% de luz para que sea siempre un color brillante/neón
+      const lNorm = 50 / 100;
+      const a = (100 * Math.min(lNorm, 1 - lNorm)) / 100;
+      const f = (n: number) => {
+        const k = (n + h / 30) % 12;
+        const color = lNorm - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * color).toString(16).padStart(2, '0');
+      };
+      
+      colorGuardado = `#${f(0)}${f(8)}${f(4)}`.toUpperCase();
       localStorage.setItem('dj_huella_color', colorGuardado);
     }
+    
     setColorCliente(colorGuardado);
   }, []);
 
@@ -107,7 +124,7 @@ function App() {
   const cargarPeticiones = async () => {
     const { data, error } = await supabase
       .from('peticiones')
-      .select('id, contenido, cliente_nombre, votos, estado, created_at')
+      .select('id, contenido, cliente_nombre, votos, estado, created_at, reproducida_en')
       .eq('tipo', 'cancion');
 
     if (!error && data) {
@@ -120,7 +137,11 @@ function App() {
 
       const ejecutadas = data
         .filter(p => p.estado === 'ejecutada')
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        .sort((a, b) => {
+          const tiempoA = a.reproducida_en ? new Date(a.reproducida_en).getTime() : new Date(a.created_at).getTime();
+          const tiempoB = b.reproducida_en ? new Date(b.reproducida_en).getTime() : new Date(b.created_at).getTime();
+          return tiempoB - tiempoA;
+        });
 
       setPeticionesPendientes(pendientes);
       setPeticionesEjecutadas(ejecutadas);
@@ -210,10 +231,27 @@ function App() {
       </div>
 
       <div className="z-50 w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5 shadow-2xl mb-6 overflow-visible">
-        <form onSubmit={enviarPeticion} className="flex flex-col gap-3 relative">
+        {/* NUEVO: Ref agregado al formulario */}
+        <form ref={formularioRef} onSubmit={enviarPeticion} className="flex flex-col gap-3 relative">
           <div className="flex gap-3">
-            <input type="text" placeholder="Tu Nombre (Opcional)" value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white focus:border-neon-purple transition-colors"/>
-            <input type="text" placeholder="# Mesa" value={mesa} onChange={(e) => setMesa(e.target.value)} className="w-24 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white text-center focus:border-neon-purple transition-colors"/>
+            <input 
+              type="text" 
+              placeholder="Tu Nombre (Opcional)" 
+              value={nombre} 
+              onChange={(e) => setNombre(e.target.value)} 
+              // NUEVO: Correctores desactivados
+              spellCheck={false}
+              autoComplete="off"
+              autoCorrect="off"
+              className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white focus:border-neon-purple transition-colors"
+            />
+            <input 
+              type="text" 
+              placeholder="# Mesa" 
+              value={mesa} 
+              onChange={(e) => setMesa(e.target.value)} 
+              className="w-24 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white text-center focus:border-neon-purple transition-colors"
+            />
           </div>
 
           <div className="flex bg-black/40 rounded-full p-1 border border-white/5">
@@ -222,7 +260,23 @@ function App() {
           </div>
 
           <div className="relative w-full">
-            <textarea required placeholder={tipo === 'cancion' ? "¿Qué canción quieres escuchar? Ej. Bee Gees - Night Fever" : "¿Qué mensaje quieres enviar?"} value={contenido} onChange={(e) => { setContenido(e.target.value); if (e.target.value !== ultimaSeleccion) setUltimaSeleccion(''); }} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white focus:border-neon-blue transition-colors h-16 resize-none relative z-10"/>
+            <textarea 
+              required 
+              placeholder={tipo === 'cancion' ? "¿Qué canción quieres escuchar? Ej. Bee Gees - Night Fever" : "¿Qué mensaje quieres enviar?"} 
+              value={contenido} 
+              onChange={(e) => { setContenido(e.target.value); if (e.target.value !== ultimaSeleccion) setUltimaSeleccion(''); }} 
+              // NUEVO: Movimiento mágico de pantalla y correctores desactivados
+              onFocus={() => {
+                setTimeout(() => {
+                  formularioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 400);
+              }}
+              spellCheck={false}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-white focus:border-neon-blue transition-colors h-16 resize-none relative z-10"
+            />
             
             {tipo === 'cancion' && mostrarSugerencias && (sugerencias.length > 0 || buscando) && (
               <div className="absolute top-full mt-2 w-full bg-[#100B21] border border-neon-purple/50 rounded-xl shadow-[0_0_20px_rgba(188,19,254,0.2)] z-50 overflow-hidden">
